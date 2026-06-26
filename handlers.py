@@ -161,11 +161,9 @@ async def _reply_dm(
         await context.bot.send_message(chat_id=uid, text=text, **kwargs)
         return True
     except Forbidden:
-        bot_user = await context.bot.get_me()
-        link = f"https://t.me/{bot_user.username}"
         if update.callback_query:
             await update.callback_query.answer(
-                f"⚠️ يرجى بدء المحادثة مع البوت أولاً:\n{link}",
+                "⚠️ يرجى مراسلة البوت على الخاص للاطلاع على إحصائياتك.",
                 show_alert=True,
             )
         return False
@@ -949,10 +947,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if dm_ok:
             await query.answer(msg.CHECKIN_TOAST_NEW, show_alert=False)
         else:
-            bot_user = await context.bot.get_me()
-            link = f"https://t.me/{bot_user.username}"
             await query.answer(
-                f"⚠️ ابدأ المحادثة مع البوت أولاً لتصلك الإحصائيات:\n{link}",
+                "⚠️ يرجى مراسلة البوت على الخاص للاطلاع على إحصائياتك.",
                 show_alert=True,
             )
 
