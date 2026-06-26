@@ -239,6 +239,7 @@ async def cmd_checkin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     today = today_in_tz(await _group_tz(await db.get_settings(chat.id)))
 
+    await db.upsert_group(chat.id, chat.title or "")
     await db.upsert_user(user.id, chat.id, user.first_name, user.last_name or "", user.username or "")
     is_new = await db.checkin(user.id, chat.id, today)
 
@@ -906,6 +907,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         tz = await _group_tz(group_settings)
         today = today_in_tz(tz)
 
+        await db.upsert_group(chat.id, chat.title or "")
         await db.upsert_user(
             user.id, chat.id,
             user.first_name, user.last_name or "", user.username or ""
