@@ -419,7 +419,7 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
     custom_text = group_settings["custom_reading"] if group_settings else ""
-    raw_start   = (group_settings.get("reading_start") or "") if group_settings else ""
+    raw_start   = (group_settings["reading_start"] or "") if group_settings else ""
     start_date  = date.fromisoformat(raw_start) if raw_start else None
     reading     = get_reading_for_today(plan_key, custom_text, today, start_date)
     date_str    = format_date_arabic(today)
@@ -1060,7 +1060,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             group_settings = await db.get_settings(target_group_id)
             tz = await _group_tz(group_settings)
             today = today_in_tz(tz)
-            raw_start  = (group_settings.get("reading_start") or "") if group_settings else ""
+            raw_start  = (group_settings["reading_start"] or "") if group_settings else ""
             start_date = date.fromisoformat(raw_start) if raw_start else None
             reading    = get_reading_for_today(plan_key, "", today, start_date)
             await query.message.reply_text(
@@ -1081,7 +1081,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text = group_settings["custom_reading"] if group_settings else ""
-        raw_start   = (group_settings.get("reading_start") or "") if group_settings else ""
+        raw_start   = (group_settings["reading_start"] or "") if group_settings else ""
         start_date  = date.fromisoformat(raw_start) if raw_start else None
         reading     = get_reading_for_today(plan_key, custom_text, today, start_date)
         date_str    = format_date_arabic(today)
