@@ -125,8 +125,10 @@ async def _send_safe(update: Update, text: str, **kwargs):
 
 
 async def _delete_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Delete the user's command message to keep the group clean."""
-    if _is_group(update):
+    """Delete the user's command message to keep the group clean.
+    Never deletes messages triggered by inline keyboard callbacks
+    (e.g. tapping buttons on the daily post)."""
+    if _is_group(update) and not update.callback_query:
         try:
             await update.effective_message.delete()
             logger.debug("Deleted command message in group %d", update.effective_chat.id)
