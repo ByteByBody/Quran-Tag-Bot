@@ -99,25 +99,30 @@ def get_reading_for_today(
     plan_key: str,
     custom_text: str = "",
     target_date: Optional[date] = None,
+    start_date: Optional[date] = None,
 ) -> str:
     """
     Return the reading text for today based on the active plan.
 
-    For rotating plans (juz/pages) the assignment is based on
-    day-of-year modulo the total cycle length, so it loops cleanly.
+    If *start_date* is provided, the cycle starts from juz 1 / page 1
+    on that date and advances one step per day from there.
+    Otherwise falls back to day-of-year (calendar-based) rotation.
     """
     if target_date is None:
         target_date = date.today()
 
-    day_of_year = target_date.timetuple().tm_yday  # 1–366
+    if start_date is not None and target_date >= start_date:
+        day_index = (target_date - start_date).days  # 0 = first day
+    else:
+        day_index = target_date.timetuple().tm_yday - 1  # 0-based day of year
 
     if plan_key == "1_juz_day":
-        juz = ((day_of_year - 1) % _TOTAL_JUZ) + 1
+        juz = (day_index % _TOTAL_JUZ) + 1
         return PLAN_READING_1_JUZ.format(juz=juz)
 
     if plan_key in ("2_pages_day", "5_pages_day", "10_pages_day"):
         ppd = int(plan_key.split("_")[0])
-        from_page = ((day_of_year - 1) * ppd % _TOTAL_PAGES) + 1
+        from_page = (day_index * ppd % _TOTAL_PAGES) + 1
         to_page = min(from_page + ppd - 1, _TOTAL_PAGES)
         return PLAN_READING_PAGES.format(
             pages=ppd, from_page=from_page, to_page=to_page

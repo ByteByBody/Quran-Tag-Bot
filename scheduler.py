@@ -115,7 +115,9 @@ async def daily_post_job(context) -> None:
 
         plan_key     = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text  = group_settings["custom_reading"] if group_settings else ""
-        reading      = get_reading_for_today(plan_key, custom_text, today)
+        raw_start    = (group_settings.get("reading_start") or "") if group_settings else ""
+        start_date   = date.fromisoformat(raw_start) if raw_start else None
+        reading      = get_reading_for_today(plan_key, custom_text, today, start_date)
         date_str     = format_date_arabic(today)
 
         # ── Dynamic motivation (no-repeat) ────────────────────────────────

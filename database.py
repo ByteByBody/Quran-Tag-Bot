@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS settings (
     reminder_enabled    INTEGER NOT NULL DEFAULT 0,
     reminder_times      TEXT    NOT NULL DEFAULT '20:00',
     announce_badges     INTEGER NOT NULL DEFAULT 1,
+    reading_start       TEXT    NOT NULL DEFAULT '',
     FOREIGN KEY (group_id) REFERENCES groups(group_id) ON DELETE CASCADE
 );"""
 
@@ -160,6 +161,7 @@ _MIGRATIONS = [
     "ALTER TABLE settings ADD COLUMN reminder_enabled INTEGER NOT NULL DEFAULT 0;",
     "ALTER TABLE settings ADD COLUMN reminder_times TEXT NOT NULL DEFAULT '20:00';",
     "ALTER TABLE settings ADD COLUMN announce_badges INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE settings ADD COLUMN reading_start TEXT NOT NULL DEFAULT '';",
 ]
 
 # Default reading plans seed data
@@ -274,10 +276,11 @@ class Database:
             (group_id, title, now),
             commit=True,
         )
-        # Ensure settings row exists
+        # Ensure settings row exists (set reading_start for new groups)
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
         await self._execute(
-            "INSERT OR IGNORE INTO settings (group_id) VALUES (?);",
-            (group_id,),
+            "INSERT OR IGNORE INTO settings (group_id, reading_start) VALUES (?, ?);",
+            (group_id, today_str),
             commit=True,
         )
         logger.debug("Upserted group %d (%s)", group_id, title)
@@ -682,6 +685,7 @@ class Database:
         allowed = {
             "post_time", "report_time", "timezone", "plan_key",
             "custom_reading", "reminder_enabled", "reminder_times", "announce_badges",
+            "reading_start",
         }
         if key not in allowed:
             raise ValueError(f"Unknown setting key: {key!r}")

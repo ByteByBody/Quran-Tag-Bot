@@ -10,7 +10,6 @@ from __future__ import annotations
 import io
 import logging
 import shutil
-from datetime import datetime
 from pathlib import Path
 
 import pytz
@@ -23,6 +22,7 @@ from achievements import evaluate_user_achievements, evaluate_group_milestones
 from config import settings
 from backup import async_create_backup
 from database import Database
+from datetime import date, datetime
 from keyboards import (
     CB_CANCEL,
     CB_CHECKIN,
@@ -419,7 +419,9 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
     custom_text = group_settings["custom_reading"] if group_settings else ""
-    reading     = get_reading_for_today(plan_key, custom_text, today)
+    raw_start   = (group_settings.get("reading_start") or "") if group_settings else ""
+    start_date  = date.fromisoformat(raw_start) if raw_start else None
+    reading     = get_reading_for_today(plan_key, custom_text, today, start_date)
     date_str    = format_date_arabic(today)
 
     day_seed   = today.timetuple().tm_yday
@@ -1050,7 +1052,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             group_settings = await db.get_settings(target_group_id)
             tz = await _group_tz(group_settings)
             today = today_in_tz(tz)
-            reading = get_reading_for_today(plan_key, "", today)
+            raw_start  = (group_settings.get("reading_start") or "") if group_settings else ""
+            start_date = date.fromisoformat(raw_start) if raw_start else None
+            reading    = get_reading_for_today(plan_key, "", today, start_date)
             await query.message.reply_text(
                 msg.READING_PLAN_SELECTED.format(plan_name=plan_name, reading=reading),
                 parse_mode=MD,
@@ -1069,7 +1073,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text = group_settings["custom_reading"] if group_settings else ""
-        reading     = get_reading_for_today(plan_key, custom_text, today)
+        raw_start   = (group_settings.get("reading_start") or "") if group_settings else ""
+        start_date  = date.fromisoformat(raw_start) if raw_start else None
+        reading     = get_reading_for_today(plan_key, custom_text, today, start_date)
         date_str    = format_date_arabic(today)
 
         day_seed   = today.timetuple().tm_yday
