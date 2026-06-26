@@ -832,6 +832,12 @@ async def handle_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         logger.info("New member registered: user=%d group=%d", member.id, chat.id)
 
+    # Delete the join message
+    try:
+        await update.message.delete()
+    except Exception as exc:
+        logger.warning("Could not delete join message: %s", exc)
+
     # If the bot itself was added, greet the group
     bot_user = await context.bot.get_me()
     for member in update.message.new_chat_members:
@@ -850,6 +856,12 @@ async def handle_left_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if member.id == bot_user.id:
             await db.deactivate_group(chat.id)
             logger.info("Deactivated group %d (bot removed)", chat.id)
+
+    # Delete the leave message
+    try:
+        await update.message.delete()
+    except Exception as exc:
+        logger.warning("Could not delete leave message: %s", exc)
 
 
 # ---------------------------------------------------------------------------
