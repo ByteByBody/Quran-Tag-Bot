@@ -9,15 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN python -c "
-import asyncio, sys
-sys.path.insert(0, '.')
-from database import Database
-async def init():
-    db = Database('data/quran_tracker.db')
-    await db.init()
-    await db.close()
-asyncio.run(init())
-"
+RUN python -c "import asyncio, sys; sys.path.insert(0, '.'); from database import Database; asyncio.run(Database('data/quran_tracker.db').init())"
 
 CMD ["python", "bot.py"]
