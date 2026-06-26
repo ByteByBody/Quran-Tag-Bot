@@ -1,15 +1,5 @@
 """
 bot.py — Entry point for the Quran Tracker Bot.
-
-Responsibilities:
-  • Configure logging
-  • Initialise the database
-  • Register all Telegram handlers
-  • Register scheduled jobs
-  • Start polling
-
-Run with:
-    python bot.py
 """
 
 from __future__ import annotations
@@ -17,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import logging.handlers
+import threading
 import sys
 from pathlib import Path
 
@@ -64,7 +55,6 @@ from scheduler import register_jobs
 # ---------------------------------------------------------------------------
 
 def configure_logging() -> None:
-    """Set up rotating file + console logging."""
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
 
@@ -74,7 +64,6 @@ def configure_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
 
-    # Console handler
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(log_level)
     console.setFormatter(
@@ -82,7 +71,6 @@ def configure_logging() -> None:
     )
     root_logger.addHandler(console)
 
-    # Rotating file handler
     file_handler = logging.handlers.RotatingFileHandler(
         log_dir / "bot.log",
         maxBytes=max_bytes,
@@ -97,7 +85,6 @@ def configure_logging() -> None:
     )
     root_logger.addHandler(file_handler)
 
-    # Silence overly verbose third-party loggers
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
     logging.getLogger("telegram").setLevel(logging.WARNING)
@@ -134,19 +121,14 @@ BOT_COMMANDS = [
 # ---------------------------------------------------------------------------
 
 async def post_init(app: Application) -> None:
-    """Initialise shared resources after the Application is built."""
-    # Database
     db = Database(settings.database_path)
     await db.init()
     app.bot_data["db"] = db
-
-    # Register bot commands with Telegram
     await app.bot.set_my_commands(BOT_COMMANDS)
     logging.getLogger(__name__).info("Bot commands registered.")
 
 
 async def post_shutdown(app: Application) -> None:
-    """Clean up on shutdown."""
     db: Database = app.bot_data.get("db")
     if db:
         await db.close()
@@ -158,9 +140,6 @@ async def post_shutdown(app: Application) -> None:
 # ---------------------------------------------------------------------------
 
 def register_handlers(app: Application) -> None:
-    """Attach all handlers to the Application."""
-
-    # --- Commands ---
     app.add_handler(CommandHandler("start",        cmd_start))
     app.add_handler(CommandHandler("menu",         cmd_menu))
     app.add_handler(CommandHandler("help",         cmd_help))
@@ -180,23 +159,17 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("reset_month",  cmd_reset_month))
     app.add_handler(CommandHandler("version",      cmd_version))
 
-    # --- Inline keyboard callbacks ---
     app.add_handler(CallbackQueryHandler(handle_callback))
 
-    # --- Group membership changes ---
     app.add_handler(
         MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, handle_new_member)
     )
     app.add_handler(
         MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, handle_left_member)
     )
-
-    # --- Document messages (for /restore) ---
     app.add_handler(
         MessageHandler(filters.Document.ALL & ~filters.COMMAND, handle_restore_document)
     )
-
-    # --- Plain text (for capturing setting values) ---
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message)
     )
@@ -207,11 +180,8 @@ def register_handlers(app: Application) -> None:
 # ---------------------------------------------------------------------------
 
 async def error_handler(update: object, context) -> None:
-    """Log all unhandled exceptions."""
     logger = logging.getLogger(__name__)
     logger.error("Unhandled exception for update %s", update, exc_info=context.error)
-
-    # Attempt to notify the user if we have an update
     if isinstance(update, Update) and update.effective_message:
         try:
             await update.effective_message.reply_text("⚠️ حدث خطأ غير متوقع.")
@@ -220,11 +190,35 @@ async def error_handler(update: object, context) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Health server (for Hugging Face port 7860 requirement)
+# Runs in a separate thread with its own event loop.
+# Uses only Python stdlib.
+# ---------------------------------------------------------------------------
+
+async def handle_health(reader, writer):
+    writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Type: text/plain\r\n\r\nok")
+    await writer.drain()
+    writer.close()
+
+
+async def _run_health_server():
+    server = await asyncio.start_server(handle_health, "0.0.0.0", 7860)
+    logging.getLogger(__name__).info("Health server listening on port 7860")
+    async with server:
+        await server.serve_forever()
+
+
+def start_health_server():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(_run_health_server())
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Build and run the bot."""
     configure_logging()
     logger = logging.getLogger(__name__)
     logger.info("Starting Quran Tracker Bot v%s …", settings.bot_version)
@@ -232,6 +226,10 @@ def main() -> None:
     if settings is None:
         logger.critical("Settings could not be loaded. Check your .env file.")
         sys.exit(1)
+
+    # Start health server in a background thread
+    t = threading.Thread(target=start_health_server, daemon=True)
+    t.start()
 
     app = (
         Application.builder()
