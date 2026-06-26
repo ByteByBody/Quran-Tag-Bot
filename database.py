@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS settings (
     custom_reading      TEXT    NOT NULL DEFAULT '',
     reminder_enabled    INTEGER NOT NULL DEFAULT 0,
     reminder_times      TEXT    NOT NULL DEFAULT '20:00',
-    announce_badges     INTEGER NOT NULL DEFAULT 1,
+    announce_badges     INTEGER NOT NULL DEFAULT 0,
     reading_start       TEXT    NOT NULL DEFAULT '',
     FOREIGN KEY (group_id) REFERENCES groups(group_id) ON DELETE CASCADE
 );"""
@@ -160,7 +160,7 @@ _ALL_DDL = [
 _MIGRATIONS = [
     "ALTER TABLE settings ADD COLUMN reminder_enabled INTEGER NOT NULL DEFAULT 0;",
     "ALTER TABLE settings ADD COLUMN reminder_times TEXT NOT NULL DEFAULT '20:00';",
-    "ALTER TABLE settings ADD COLUMN announce_badges INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE settings ADD COLUMN announce_badges INTEGER NOT NULL DEFAULT 0;",
     "ALTER TABLE settings ADD COLUMN reading_start TEXT NOT NULL DEFAULT '';",
 ]
 

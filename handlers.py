@@ -967,10 +967,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Evaluate achievements and milestones
         plan_key = group_settings["plan_key"] if group_settings else "1_juz_day"
 
-        try:
-            announce = bool(group_settings["announce_badges"] if group_settings else 1)
-        except (IndexError, KeyError):
-            announce = settings.announce_badges
+        announce = settings.announce_badges
 
         try:
             await evaluate_user_achievements(
