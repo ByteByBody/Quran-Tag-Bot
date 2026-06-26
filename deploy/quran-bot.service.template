@@ -1,0 +1,27 @@
+[Unit]
+Description=Quran Tracker Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__WORKDIR__
+ExecStart=__WORKDIR__/.venv/bin/python bot.py
+
+# Graceful shutdown (python-telegram-bot handles SIGINT and SIGTERM safely)
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# Automatic Restart
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
