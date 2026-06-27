@@ -1117,6 +1117,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if not await _verify_admin():
             await query.answer(msg.ADMIN_ONLY, show_alert=True)
             return
+        gs = await db.get_settings(target_group_id)
         col = {
             CB_TOGGLE_REPORT:    "report_enabled",
             CB_TOGGLE_MILESTONES: "milestones_enabled",
@@ -1127,7 +1128,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             CB_TOGGLE_REMINDER:  "reminder_enabled",
             CB_TOGGLE_ANNOUNCE:  "announce_badges",
         }[data]
-        current = bool(group_settings[col]) if group_settings else False
+        current = bool(gs[col]) if gs else False
         await db.update_setting(target_group_id, col, "0" if current else "1")
         await query.answer()
         await show_group_settings(update, context, target_group_id)
