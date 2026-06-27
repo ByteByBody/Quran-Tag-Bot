@@ -24,6 +24,7 @@ CB_SET_POST_TIME = "set_post_time"
 CB_SET_REPORT_TIME = "set_report_time"
 CB_SET_TIMEZONE = "set_timezone"
 CB_SET_PLAN = "set_plan"
+CB_TOGGLE_REPORT = "toggle_report"
 CB_FORCE_DAILY = "force_daily"
 CB_SKIP_DAY = "skip_day"
 CB_RESET_MONTH = "reset_month"
@@ -80,13 +81,15 @@ def stats_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
-def settings_main_keyboard(is_supergroup: bool = True) -> InlineKeyboardMarkup:
+def settings_main_keyboard(is_supergroup: bool = True, report_enabled: bool = True) -> InlineKeyboardMarkup:
     """Main settings menu keyboard for admins."""
+    report_label = f"{msg.BTN_TOGGLE_REPORT}: {'🟢' if report_enabled else '🔴'}"
     rows = [
         [InlineKeyboardButton(msg.BTN_SET_POST_TIME, callback_data=CB_SET_POST_TIME)],
         [InlineKeyboardButton(msg.BTN_SET_REPORT_TIME, callback_data=CB_SET_REPORT_TIME)],
         [InlineKeyboardButton(msg.BTN_SET_TIMEZONE, callback_data=CB_SET_TIMEZONE)],
         [InlineKeyboardButton(msg.BTN_READING_PLAN, callback_data=CB_SET_PLAN)],
+        [InlineKeyboardButton(report_label, callback_data=CB_TOGGLE_REPORT)],
         [InlineKeyboardButton(msg.BTN_FORCE_DAILY, callback_data=CB_FORCE_DAILY)],
         [InlineKeyboardButton(msg.BTN_SKIP_DAY, callback_data=CB_SKIP_DAY)],
         [InlineKeyboardButton(msg.BTN_RESET_MONTH, callback_data=CB_RESET_MONTH)],

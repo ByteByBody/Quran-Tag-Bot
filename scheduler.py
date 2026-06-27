@@ -176,6 +176,9 @@ async def daily_report_job(context) -> None:
         if await db.is_day_skipped(group_id, today):
             continue
 
+        if group_settings and not bool(group_settings.get("report_enabled", 1)):
+            continue
+
         active_users = await db.get_active_users(group_id)
         checked_ids  = set(await db.get_who_checked_in(group_id, today))
         total     = len(active_users)

@@ -413,6 +413,7 @@ BTN_SET_POST_TIME    = "🕐 وقت الورد"
 BTN_SET_REPORT_TIME  = "📋 وقت التقرير"
 BTN_SET_TIMEZONE     = "🌍 المنطقة الزمنية"
 BTN_FORCE_DAILY      = "📤 إرسال الورد الآن"
+BTN_TOGGLE_REPORT    = "📋 التقرير اليومي"
 BTN_SKIP_DAY         = "⏭️ تخطي اليوم"
 BTN_RESET_MONTH      = "🔄 إعادة ضبط الشهر"
 

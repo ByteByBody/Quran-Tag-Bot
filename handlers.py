@@ -28,6 +28,7 @@ from keyboards import (
     CB_CHECKIN,
     CB_CONFIRM_RESET,
     CB_FORCE_DAILY,
+    CB_TOGGLE_REPORT,
     CB_GROUP_STATS,
     CB_MY_STATS,
     CB_PLAN_PREFIX,
@@ -520,6 +521,7 @@ async def show_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
             group_title = g["title"]
             break
 
+    report_enabled = bool(group_settings.get("report_enabled", 1))
     text = f"⚙️ *إعدادات: {escape_markdown(group_title)}*\n\n" + msg.SETTINGS_BODY.format(
         post_time=group_settings["post_time"],
         report_time=group_settings["report_time"],
@@ -527,14 +529,11 @@ async def show_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
         plan_name=plan_name,
     )
 
+    kb = settings_main_keyboard(report_enabled=report_enabled)
     if update.callback_query:
-        await update.callback_query.message.edit_text(
-            text, parse_mode=MD, reply_markup=settings_main_keyboard()
-        )
+        await update.callback_query.message.edit_text(text, parse_mode=MD, reply_markup=kb)
     else:
-        await update.effective_message.reply_text(
-            text, parse_mode=MD, reply_markup=settings_main_keyboard()
-        )
+        await update.effective_message.reply_text(text, parse_mode=MD, reply_markup=kb)
 
 async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Open the settings panel for group admins in DM."""
@@ -1072,6 +1071,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 msg.READING_PLAN_SELECTED.format(plan_name=plan_name, reading=reading),
                 parse_mode=MD,
             )
+
+    elif data == CB_TOGGLE_REPORT:
+        if not await _verify_admin():
+            await query.answer(msg.ADMIN_ONLY, show_alert=True)
+            return
+        current = bool(group_settings.get("report_enabled", 1)) if group_settings else True
+        new_val = "0" if current else "1"
+        await db.update_setting(target_group_id, "report_enabled", new_val)
+        await query.answer()
+        await show_group_settings(update, context, target_group_id)
 
     elif data == CB_FORCE_DAILY:
         if not await _verify_admin():
