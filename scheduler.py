@@ -109,6 +109,11 @@ async def daily_post_job(context) -> None:
         tz = await _get_group_tz(group_settings)
         today = today_in_tz(tz)
 
+        # Only run if current time matches this group's post_time
+        post_time = group_settings["post_time"] if group_settings else "08:00"
+        if not _time_matches(post_time, tz):
+            continue
+
         if await db.is_day_skipped(group_id, today):
             logger.info("daily_post_job: group %d skipped for %s", group_id, today)
             continue
@@ -117,8 +122,10 @@ async def daily_post_job(context) -> None:
         custom_text  = group_settings["custom_reading"] if group_settings else ""
         raw_start    = (group_settings["reading_start"] or "") if group_settings else ""
         start_date   = date.fromisoformat(raw_start) if raw_start else None
-        reading      = get_reading_for_today(plan_key, custom_text, today, start_date)
-        date_str     = format_date_arabic(today)
+        current_day  = int(group_settings["reading_current_day"]) if group_settings else -1
+        use_hijri    = bool(group_settings["use_hijri_date"]) if group_settings else False
+        reading      = get_reading_for_today(plan_key, custom_text, today, start_date, current_day)
+        date_str     = format_date_arabic(today, hijri=use_hijri)
 
         # ── Dynamic motivation (no-repeat) ────────────────────────────────
         day_seed = today.timetuple().tm_yday
@@ -176,12 +183,18 @@ async def daily_report_job(context) -> None:
         tz = await _get_group_tz(group_settings)
         today = today_in_tz(tz)
 
+        # Only run if current time matches this group's report_time
+        report_time = group_settings["report_time"] if group_settings else "22:00"
+        if not _time_matches(report_time, tz):
+            continue
+
         if await db.is_day_skipped(group_id, today):
             continue
 
         if group_settings and not bool(group_settings["report_enabled"]):
             continue
 
+        use_hijri = bool(group_settings["use_hijri_date"]) if group_settings else False
         active_users = await db.get_active_users(group_id)
         checked_ids  = set(await db.get_who_checked_in(group_id, today))
         total     = len(active_users)
@@ -195,7 +208,7 @@ async def daily_report_job(context) -> None:
             continue
 
         text = msg.DAILY_REPORT_HEADER + "\n" + msg.DAILY_REPORT_BODY.format(
-            date=format_date_arabic(today),
+            date=format_date_arabic(today, hijri=use_hijri),
             confirmed=confirmed,
             pending=pending,
             pct=pct,
@@ -248,6 +261,8 @@ async def weekly_report_job(context) -> None:
         if group_settings and not bool(group_settings["weekly_report_enabled"]):
             continue
 
+        use_hijri = bool(group_settings["use_hijri_date"]) if group_settings else False
+
         # Current week data
         curr_rows = await db.get_weekly_report_data(group_id, from_date, to_date)
         curr_stats = compute_weekly_stats(curr_rows, from_date, to_date)
@@ -278,8 +293,8 @@ async def weekly_report_job(context) -> None:
         encouragement = get_weekly_encouragement(iso_week_number(today_utc))
 
         text = msg.WEEKLY_REPORT_HEADER + "\n" + msg.WEEKLY_REPORT_BODY.format(
-            from_date=format_date_arabic(from_date),
-            to_date=format_date_arabic(to_date),
+            from_date=format_date_arabic(from_date, hijri=use_hijri),
+            to_date=format_date_arabic(to_date, hijri=use_hijri),
             active_members=curr_stats["active_members"],
             total_checkins=curr_stats["total_checkins"],
             avg_pct=curr_stats["avg_pct"],
@@ -389,9 +404,6 @@ async def reminder_job(context) -> None:
     db = _get_db(app)
     bot: Bot = app.bot
 
-    # Which reminder index is this (0-based, derived from job name set at registration)
-    reminder_idx: int = (context.job.data or {}).get("reminder_idx", 0)
-
     for group_row in await db.get_all_active_groups():
         group_id: int = group_row["group_id"]
         group_settings = await db.get_settings(group_id)
@@ -407,6 +419,13 @@ async def reminder_job(context) -> None:
         tz = await _get_group_tz(group_settings)
         today = today_in_tz(tz)
 
+        # Check which reminder times match the current minute
+        raw_times = (group_settings["reminder_times"] or "20:00") if group_settings else "20:00"
+        reminder_list = [t.strip() for t in raw_times.split(",") if t.strip()]
+        matched_indices = [i for i, t in enumerate(reminder_list) if _time_matches(t, tz)]
+        if not matched_indices:
+            continue
+
         if await db.is_day_skipped(group_id, today):
             continue
 
@@ -414,23 +433,24 @@ async def reminder_job(context) -> None:
         if not pending_users:
             continue
 
-        reminder_text = (
-            msg.REMINDER_HEADER
-            + "\n"
-            + msg.get_reminder_text(reminder_idx)
-        )
+        for reminder_idx in matched_indices:
+            reminder_text = (
+                msg.REMINDER_HEADER
+                + "\n"
+                + msg.get_reminder_text(reminder_idx)
+            )
 
-        sent_count = 0
-        for user_row in pending_users:
-            user_id: int = user_row["user_id"]
-            ok = await _send_safe(bot, user_id, reminder_text, parse_mode=MD)
-            if ok:
-                sent_count += 1
+            sent_count = 0
+            for user_row in pending_users:
+                user_id: int = user_row["user_id"]
+                ok = await _send_safe(bot, user_id, reminder_text, parse_mode=MD)
+                if ok:
+                    sent_count += 1
 
-        logger.info(
-            "reminder_job[%d]: group %d — sent to %d/%d pending users",
-            reminder_idx, group_id, sent_count, len(pending_users),
-        )
+            logger.info(
+                "reminder_job[%d]: group %d — sent to %d/%d pending users",
+                reminder_idx, group_id, sent_count, len(pending_users),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -466,40 +486,46 @@ def register_jobs(app: Application) -> None:
     """
     Register all scheduled jobs with the Application's JobQueue.
 
-    Times are read from settings and interpreted in the global timezone.
-    Per-group timezone overrides are applied at runtime within each job.
+    Per-group times (post_time, report_time, reminder_times) are checked
+    every minute so each group gets its content at its configured time.
     """
     jq = app.job_queue
     # Run health check every 4 hours
     jq.run_repeating(monitoring_job, interval=timedelta(hours=4), first=30, name="monitoring_job")
     tz = settings.timezone
 
+    # These jobs run every minute and dispatch per-group based on each
+    # group's configured time in its own timezone.  1-minute interval
+    # guarantees every HH:MM is covered regardless of bot start time.
+    interval_1m = timedelta(minutes=1)
+
     # ── Daily post ─────────────────────────────────────────────────────────
-    post_h, post_m = parse_hhmm(settings.default_post_time)
-    jq.run_daily(
+    jq.run_repeating(
         daily_post_job,
-        time=_local_time(post_h, post_m, tz),
+        interval=interval_1m,
+        first=5,
         name="daily_post",
     )
-    logger.info("Scheduled daily_post at %s %s", settings.default_post_time, settings.timezone_str)
+    logger.info("Scheduled daily_post — dispatches every 1 min at per-group post_time")
 
     # ── Daily report ───────────────────────────────────────────────────────
-    report_h, report_m = parse_hhmm(settings.report_time)
-    jq.run_daily(
+    jq.run_repeating(
         daily_report_job,
-        time=_local_time(report_h, report_m, tz),
+        interval=interval_1m,
+        first=10,
         name="daily_report",
     )
-    logger.info("Scheduled daily_report at %s %s", settings.report_time, settings.timezone_str)
+    logger.info("Scheduled daily_report — dispatches every 1 min at per-group report_time")
 
     # ── Weekly report (check daily; only acts on the right weekday) ────────
     if settings.enable_weekly_report:
-        jq.run_daily(
+        jq.run_repeating(
             weekly_report_job,
-            time=_local_time(23, 45, tz),
+            interval=interval_1m,
+            first=15,
             name="weekly_report",
         )
-        logger.info("Scheduled weekly_report (fires on weekday %d)", settings.weekly_report_day)
+        logger.info("Scheduled weekly_report — fires every 1 min, acts on weekday %d", settings.weekly_report_day)
 
     # ── Monthly report (check daily; only acts on the 1st) ─────────────────
     jq.run_daily(
@@ -509,24 +535,13 @@ def register_jobs(app: Application) -> None:
     )
 
     # ── Reminders ──────────────────────────────────────────────────────────
-    if settings.enable_reminders:
-        for idx, time_str in enumerate(settings.reminder_times):
-            try:
-                r_h, r_m = parse_hhmm(time_str)
-            except (ValueError, AttributeError):
-                logger.warning("Invalid reminder time: %r — skipping", time_str)
-                continue
-
-            job_name = f"reminder_{idx}"
-            job = jq.run_daily(
-                reminder_job,
-                time=_local_time(r_h, r_m, tz),
-                name=job_name,
-                data={"reminder_idx": idx},
-            )
-            logger.info(
-                "Scheduled reminder[%d] at %s %s", idx, time_str, settings.timezone_str
-            )
+    jq.run_repeating(
+        reminder_job,
+        interval=interval_1m,
+        first=20,
+        name="reminder",
+    )
+    logger.info("Scheduled reminders — dispatches every 1 min at per-group reminder_times")
 
     # ── Auto backup ────────────────────────────────────────────────────────
     backup_h, backup_m = parse_hhmm(settings.backup_time)
@@ -546,3 +561,13 @@ def _local_time(hour: int, minute: int, tz: pytz.BaseTzInfo):
     """Return a timezone-aware time object for APScheduler."""
     import datetime as _dt
     return _dt.time(hour, minute, tzinfo=tz)
+
+
+def _time_matches(hhmm: str, tz: pytz.BaseTzInfo) -> bool:
+    """Check if *hhmm* (HH:MM) matches the current minute in timezone *tz*."""
+    now = datetime.now(tz)
+    try:
+        h, m = parse_hhmm(hhmm)
+    except (ValueError, AttributeError):
+        return False
+    return now.hour == h and now.minute == m

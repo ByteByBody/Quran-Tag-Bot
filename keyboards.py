@@ -22,6 +22,7 @@ CB_GROUP_STATS = "group_stats"
 CB_SETTINGS_MENU = "settings_menu"
 CB_SET_POST_TIME = "set_post_time"
 CB_SET_REPORT_TIME = "set_report_time"
+CB_SET_REMINDER_TIME = "set_reminder_time"
 CB_SET_TIMEZONE = "set_timezone"
 CB_SET_PLAN = "set_plan"
 CB_TOGGLE_REPORT = "toggle_report"
@@ -32,6 +33,8 @@ CB_TOGGLE_HADITH = "toggle_hadith"
 CB_TOGGLE_DUA = "toggle_dua"
 CB_TOGGLE_REMINDER = "toggle_reminder"
 CB_TOGGLE_ANNOUNCE = "toggle_announce"
+CB_SET_JUZ = "set_juz"
+CB_TOGGLE_HIJRI = "toggle_hijri"
 CB_FORCE_DAILY = "force_daily"
 CB_SKIP_DAY = "skip_day"
 CB_RESET_MONTH = "reset_month"
@@ -98,6 +101,7 @@ def settings_main_keyboard(
     daily_dua_enabled: bool = False,
     reminder_enabled: bool = False,
     announce_badges: bool = False,
+    use_hijri_date: bool = False,
 ) -> InlineKeyboardMarkup:
     """Main settings menu keyboard for admins."""
 
@@ -107,8 +111,11 @@ def settings_main_keyboard(
     rows = [
         [InlineKeyboardButton(msg.BTN_SET_POST_TIME, callback_data=CB_SET_POST_TIME)],
         [InlineKeyboardButton(msg.BTN_SET_REPORT_TIME, callback_data=CB_SET_REPORT_TIME)],
+        [InlineKeyboardButton(msg.BTN_SET_REMINDER_TIME, callback_data=CB_SET_REMINDER_TIME)],
         [InlineKeyboardButton(msg.BTN_SET_TIMEZONE, callback_data=CB_SET_TIMEZONE)],
         [InlineKeyboardButton(msg.BTN_READING_PLAN, callback_data=CB_SET_PLAN)],
+        [InlineKeyboardButton(msg.BTN_SET_JUZ, callback_data=CB_SET_JUZ)],
+        [_btn(msg.BTN_TOGGLE_HIJRI, CB_TOGGLE_HIJRI, use_hijri_date)],
         [_btn(msg.BTN_TOGGLE_REPORT, CB_TOGGLE_REPORT, report_enabled)],
         [_btn(msg.BTN_TOGGLE_MILESTONES, CB_TOGGLE_MILESTONES, milestones_enabled)],
         [_btn(msg.BTN_TOGGLE_WEEKLY, CB_TOGGLE_WEEKLY, weekly_report_enabled)],

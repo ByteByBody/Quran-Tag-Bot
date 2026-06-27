@@ -19,6 +19,9 @@ from typing import Optional
 import pytz
 
 import messages as msg
+
+# Hijri month lengths (approximate, based on Umm al-Qura)
+_HIJRI_MONTH_DAYS = [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29]
 from messages import (
     ARABIC_MONTHS,
     DAILY_DUAS,
@@ -48,9 +51,47 @@ def today_in_tz(tz: pytz.BaseTzInfo) -> date:
     return now_in_tz(tz).date()
 
 
-def format_date_arabic(d: date) -> str:
-    """Format a date as Arabic string: e.g. '15 يونيو 2025'."""
+def gregorian_to_hijri(d: date) -> tuple[int, int, int]:
+    """Convert Gregorian date to Hijri (year, month, day) using the standard algorithm."""
+    # Julian Day Number
+    y, m, d_ = d.year, d.month, d.day
+    if m <= 2:
+        y -= 1
+        m += 12
+    a = y // 100
+    b = 2 - a + a // 4
+    jdn = int(365.25 * (y + 4716)) + int(30.6001 * (m + 1)) + d_ + b - 1524.5
+    jdn = int(jdn + 0.5)
+
+    # JDN to Hijri
+    y = 10631.0 / 30.0
+    epoch = 1948439.5 - 1  # Julian day of Hijri epoch (1 Muharram 1 AH)
+    days = jdn - int(epoch)
+    h_year = int((days - 1) / y)
+    remainder = days - int(h_year * y)
+    h_month = 1
+    for ml in _HIJRI_MONTH_DAYS:
+        if remainder <= ml:
+            break
+        remainder -= ml
+        h_month += 1
+    h_day = int(remainder)
+    return (h_year + 1, h_month, max(h_day, 1))
+
+
+def format_date_arabic(d: date, hijri: bool = False) -> str:
+    """Format a date as Arabic string: e.g. '15 يونيو 2025' or Hijri equivalent."""
+    if hijri:
+        hy, hm, hd = gregorian_to_hijri(d)
+        return f"{hd} {msg.HIJRI_MONTHS[hm]} {hy} هـ"
     return f"{d.day} {ARABIC_MONTHS[d.month]} {d.year}"
+
+
+def hijri_day_of_year(d: date) -> int:
+    """Return the 0-based day-of-year in the Hijri calendar (1 Muharram = 0)."""
+    hy, hm, hd = gregorian_to_hijri(d)
+    total = sum(_HIJRI_MONTH_DAYS[:hm - 1]) + (hd - 1)
+    return total
 
 
 def format_month_arabic(year: int, month: int) -> str:
@@ -100,21 +141,25 @@ def get_reading_for_today(
     custom_text: str = "",
     target_date: Optional[date] = None,
     start_date: Optional[date] = None,
+    current_day: int = -1,
 ) -> str:
     """
     Return the reading text for today based on the active plan.
 
     If *start_date* is provided, the cycle starts from juz 1 / page 1
     on that date and advances one step per day from there.
+    If *current_day* >= 0, that day index overrides the auto calculation.
     Otherwise falls back to day-of-year (calendar-based) rotation.
     """
     if target_date is None:
         target_date = date.today()
 
-    if start_date is not None and target_date >= start_date:
+    if current_day >= 0:
+        day_index = current_day
+    elif start_date is not None and target_date >= start_date:
         day_index = (target_date - start_date).days  # 0 = first day
     else:
-        day_index = target_date.timetuple().tm_yday - 1  # 0-based day of year
+        day_index = hijri_day_of_year(target_date)  # 0-based Hijri day of year
 
     if plan_key == "1_juz_day":
         juz = (day_index % _TOTAL_JUZ) + 1

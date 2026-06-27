@@ -36,12 +36,15 @@ from keyboards import (
     CB_TOGGLE_DUA,
     CB_TOGGLE_REMINDER,
     CB_TOGGLE_ANNOUNCE,
+    CB_SET_JUZ,
+    CB_TOGGLE_HIJRI,
     CB_GROUP_STATS,
     CB_MY_STATS,
     CB_PLAN_PREFIX,
     CB_SET_PLAN,
     CB_SET_POST_TIME,
     CB_SET_REPORT_TIME,
+    CB_SET_REMINDER_TIME,
     CB_SET_TIMEZONE,
     CB_SETTINGS_MENU,
     CB_ADMIN_SELECT_GROUP,
@@ -301,6 +304,7 @@ async def cmd_me(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     tz = await _group_tz(group_settings)
     today = today_in_tz(tz)
     plan_key = group_settings["plan_key"] if group_settings else "1_juz_day"
+    use_hijri = bool(group_settings["use_hijri_date"]) if group_settings else False
 
     streak_row = await db.get_streak(user.id, target_group)
     user_row   = await db.get_user(user.id, target_group)
@@ -332,7 +336,7 @@ async def cmd_me(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     joined_str = user_row["joined_at"]
     try:
         joined_dt  = datetime.fromisoformat(joined_str)
-        joined_disp = format_date_arabic(joined_dt.date())
+        joined_disp = format_date_arabic(joined_dt.date(), hijri=use_hijri)
     except (ValueError, TypeError):
         joined_disp = "—"
 
@@ -391,6 +395,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     group_settings = await db.get_settings(target_group)
     tz = await _group_tz(group_settings)
     today = today_in_tz(tz)
+    use_hijri = bool(group_settings["use_hijri_date"]) if group_settings else False
 
     active_users = await db.get_active_users(target_group)
     checked_ids  = set(await db.get_who_checked_in(target_group, today))
@@ -399,7 +404,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pct       = compute_completion_pct(confirmed, total)
 
     text = msg.DAILY_REPORT_HEADER + "\n" + msg.DAILY_REPORT_BODY.format(
-        date=format_date_arabic(today),
+        date=format_date_arabic(today, hijri=use_hijri),
         confirmed=confirmed,
         pending=total - confirmed,
         pct=pct,
@@ -434,8 +439,10 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     custom_text = group_settings["custom_reading"] if group_settings else ""
     raw_start   = (group_settings["reading_start"] or "") if group_settings else ""
     start_date  = date.fromisoformat(raw_start) if raw_start else None
-    reading     = get_reading_for_today(plan_key, custom_text, today, start_date)
-    date_str    = format_date_arabic(today)
+    curr_day    = int(group_settings["reading_current_day"]) if group_settings else -1
+    use_hijri   = bool(group_settings["use_hijri_date"]) if group_settings else False
+    reading     = get_reading_for_today(plan_key, custom_text, today, start_date, curr_day)
+    date_str    = format_date_arabic(today, hijri=use_hijri)
 
     day_seed   = today.timetuple().tm_yday
     last_index = await db.get_last_motivation_index(target_group)
@@ -549,6 +556,7 @@ async def show_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
     daily_dua_enabled     = _gs("daily_dua_enabled")
     reminder_enabled      = _gs("reminder_enabled")
     announce_badges       = _gs("announce_badges")
+    use_hijri_date        = _gs("use_hijri_date")
 
     text = f"⚙️ *إعدادات: {escape_markdown(group_title)}*\n\n" + msg.SETTINGS_BODY.format(
         post_time=group_settings["post_time"],
@@ -566,6 +574,7 @@ async def show_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
         daily_dua_enabled=daily_dua_enabled,
         reminder_enabled=reminder_enabled,
         announce_badges=announce_badges,
+        use_hijri_date=use_hijri_date,
     )
     if update.callback_query:
         await update.callback_query.message.edit_text(text, parse_mode=MD, reply_markup=kb)
@@ -952,6 +961,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         group_settings = await db.get_settings(chat.id)
         tz = await _group_tz(group_settings)
         today = today_in_tz(tz)
+        use_hijri = bool(group_settings["use_hijri_date"]) if group_settings else False
 
         await db.upsert_group(chat.id, chat.title or "")
         await db.upsert_user(
@@ -975,7 +985,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         badge_line = f"\n{badge}" if badge else ""
 
         dm_text = msg.CHECKIN_SUCCESS_DM.format(
-            date=format_date_arabic(today),
+            date=format_date_arabic(today, hijri=use_hijri),
             streak=current_streak,
             badge=badge_line,
         )
@@ -1034,7 +1044,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.answer(msg.ADMIN_ONLY, show_alert=True)
             return
         await query.answer()
-        await show_group_settings(update, context, target_group_id)
+        if not target_group_id or target_group_id == chat.id and chat.type == "private":
+            await cmd_settings(update, context)
+        else:
+            await show_group_settings(update, context, target_group_id)
 
     elif data == CB_SET_POST_TIME:
         if not await _verify_admin():
@@ -1057,6 +1070,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data[_PENDING_GROUP] = target_group_id
         await query.message.reply_text(
             "🕙 أرسل وقت تقرير المساء الجديد بصيغة HH:MM (مثال: 22:00)",
+            parse_mode=MD,
+        )
+
+    elif data == CB_SET_REMINDER_TIME:
+        if not await _verify_admin():
+            await query.answer(msg.ADMIN_ONLY, show_alert=True)
+            return
+        await query.answer()
+        context.user_data[_PENDING_KEY] = "reminder_times"
+        context.user_data[_PENDING_GROUP] = target_group_id
+        await query.message.reply_text(
+            "🔔 أرسل وقت التذكير بصيغة HH:MM (مثال: 20:00)\n"
+            "لإضافة عدة أوقات افصل بينها بفاصلة: 18:00,20:00,22:00",
             parse_mode=MD,
         )
 
@@ -1103,16 +1129,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             today = today_in_tz(tz)
             raw_start  = (group_settings["reading_start"] or "") if group_settings else ""
             start_date = date.fromisoformat(raw_start) if raw_start else None
-            reading    = get_reading_for_today(plan_key, "", today, start_date)
+            curr_day   = int(group_settings["reading_current_day"]) if group_settings else -1
+            reading    = get_reading_for_today(plan_key, "", today, start_date, curr_day)
             await query.message.reply_text(
                 msg.READING_PLAN_SELECTED.format(plan_name=plan_name, reading=reading),
                 parse_mode=MD,
             )
 
+    elif data == CB_SET_JUZ:
+        if not await _verify_admin():
+            await query.answer(msg.ADMIN_ONLY, show_alert=True)
+            return
+        await query.answer()
+        context.user_data[_PENDING_KEY] = "reading_current_day"
+        context.user_data[_PENDING_GROUP] = target_group_id
+        await query.message.reply_text(
+            "📖 أرسل رقم الجزء (1-30)، أو 0 للإلغاء والعودة تلقائياً:",
+            parse_mode=MD,
+        )
+
     elif data in (
         CB_TOGGLE_REPORT, CB_TOGGLE_MILESTONES, CB_TOGGLE_WEEKLY,
         CB_TOGGLE_VERSE, CB_TOGGLE_HADITH, CB_TOGGLE_DUA,
-        CB_TOGGLE_REMINDER, CB_TOGGLE_ANNOUNCE,
+        CB_TOGGLE_REMINDER, CB_TOGGLE_ANNOUNCE, CB_TOGGLE_HIJRI,
     ):
         if not await _verify_admin():
             await query.answer(msg.ADMIN_ONLY, show_alert=True)
@@ -1127,6 +1166,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             CB_TOGGLE_DUA:       "daily_dua_enabled",
             CB_TOGGLE_REMINDER:  "reminder_enabled",
             CB_TOGGLE_ANNOUNCE:  "announce_badges",
+            CB_TOGGLE_HIJRI:     "use_hijri_date",
         }[data]
         current = bool(gs[col]) if gs else False
         await db.update_setting(target_group_id, col, "0" if current else "1")
@@ -1148,8 +1188,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         custom_text = group_settings["custom_reading"] if group_settings else ""
         raw_start   = (group_settings["reading_start"] or "") if group_settings else ""
         start_date  = date.fromisoformat(raw_start) if raw_start else None
-        reading     = get_reading_for_today(plan_key, custom_text, today, start_date)
-        date_str    = format_date_arabic(today)
+        curr_day    = int(group_settings["reading_current_day"]) if group_settings else -1
+        use_hijri   = bool(group_settings["use_hijri_date"]) if group_settings else False
+        reading     = get_reading_for_today(plan_key, custom_text, today, start_date, curr_day)
+        date_str    = format_date_arabic(today, hijri=use_hijri)
 
         day_seed   = today.timetuple().tm_yday
         last_index = await db.get_last_motivation_index(target_group_id)
@@ -1198,9 +1240,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         group_settings = await db.get_settings(target_group_id)
         tz = await _group_tz(group_settings)
         today = today_in_tz(tz)
+        use_hijri = bool(group_settings["use_hijri_date"]) if group_settings else False
         await db.mark_day_skipped(target_group_id, today)
         await query.message.edit_text(
-            msg.SKIP_DAY_CONFIRM.format(date=format_date_arabic(today)),
+            msg.SKIP_DAY_CONFIRM.format(date=format_date_arabic(today, hijri=use_hijri)),
             parse_mode=MD,
         )
 
@@ -1342,6 +1385,22 @@ async def handle_text_message(
             return
         await db.update_setting(pending_group, pending_key, text)
 
+    elif pending_key == "reminder_times":
+        parts = [t.strip() for t in text.split(",") if t.strip()]
+        if not parts:
+            await _send_safe(update, "⚠️ الرجاء إرسال وقت واحد على الأقل بصيغة HH:MM.", parse_mode=MD)
+            return
+        for t in parts:
+            try:
+                parse_hhmm(t)
+            except (ValueError, AttributeError):
+                await _send_safe(
+                    update, f"⚠️ الوقت \"{t}\" غير صحيح. استخدم صيغة HH:MM (مثال: 20:00).",
+                    parse_mode=MD,
+                )
+                return
+        await db.update_setting(pending_group, "reminder_times", ",".join(parts))
+
     elif pending_key == "timezone":
         try:
             pytz.timezone(text)
@@ -1353,6 +1412,20 @@ async def handle_text_message(
     elif pending_key == "custom_reading":
         await db.update_setting(pending_group, pending_key, text)
         await db.update_setting(pending_group, "plan_key", "custom")
+
+    elif pending_key == "reading_current_day":
+        try:
+            juz = int(text)
+        except (ValueError, TypeError):
+            await _send_safe(update, "⚠️ الرجاء إرسال رقم صحيح بين 0 و 30.", parse_mode=MD)
+            return
+        if juz < 0 or juz > 30:
+            await _send_safe(update, "⚠️ الرجاء إرسال رقم بين 0 و 30.", parse_mode=MD)
+            return
+        if juz == 0:
+            await db.update_setting(pending_group, "reading_current_day", "-1")
+        else:
+            await db.update_setting(pending_group, "reading_current_day", str(juz - 1))
 
     del context.user_data[_PENDING_KEY]
     del context.user_data[_PENDING_GROUP]
