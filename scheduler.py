@@ -133,16 +133,16 @@ async def daily_post_job(context) -> None:
             + msg.DAILY_POST_BODY.format(date=date_str, reading=reading, motivation=motivation)
         )
 
-        def _gs(key: str, default: int) -> bool:
-            return bool(int(group_settings.get(key, default))) if group_settings else bool(default)
+        def _gs(key: str) -> bool:
+            return bool(group_settings[key]) if group_settings else False
 
-        if _gs("daily_verse_enabled", 1 if (settings.enable_random_verses or settings.include_daily_verse) else 0):
+        if _gs("daily_verse_enabled"):
             text += msg.DAILY_POST_WITH_VERSE.format(verse=pick_random_verse())
 
-        if _gs("daily_dua_enabled", 1 if (settings.enable_random_dua or settings.include_daily_dua) else 0):
+        if _gs("daily_dua_enabled"):
             text += msg.DAILY_POST_WITH_DUA.format(dua=pick_daily_dua())
 
-        if _gs("daily_hadith_enabled", 1 if (settings.enable_random_hadith or settings.include_daily_hadith) else 0):
+        if _gs("daily_hadith_enabled"):
             text += msg.DAILY_POST_WITH_HADITH.format(hadith=pick_random_hadith())
 
         ok = await _send_safe(
@@ -179,7 +179,7 @@ async def daily_report_job(context) -> None:
         if await db.is_day_skipped(group_id, today):
             continue
 
-        if group_settings and not bool(group_settings.get("report_enabled", 1)):
+        if group_settings and not bool(group_settings["report_enabled"]):
             continue
 
         active_users = await db.get_active_users(group_id)
@@ -245,7 +245,7 @@ async def weekly_report_job(context) -> None:
     for group_row in await db.get_all_active_groups():
         group_id: int = group_row["group_id"]
         group_settings = await db.get_settings(group_id)
-        if group_settings and not bool(int(group_settings.get("weekly_report_enabled", 1))):
+        if group_settings and not bool(group_settings["weekly_report_enabled"]):
             continue
 
         # Current week data

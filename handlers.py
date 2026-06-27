@@ -200,8 +200,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 user.id, chat.id,
                 user.first_name, user.last_name or "", user.username or ""
             )
-        await update.effective_message.reply_text(msg.START_GROUP, parse_mode=MD)
         await _delete_cmd(update, context)
+        ok = await _reply_dm(update, context, msg.START_GROUP, parse_mode=MD)
+        if not ok:
+            bot_user = await context.bot.get_me()
+            link = f"https://t.me/{bot_user.username}"
+            await _send_safe(update,
+                f"⚠️ يرجى مراسلة البوت على الخاص للبدء:\n{link}",
+                parse_mode=MD,
+            )
     else:
         await update.effective_message.reply_text(
             msg.MAIN_MENU, parse_mode=MD, reply_markup=main_menu_keyboard()
@@ -439,14 +446,14 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         + msg.DAILY_POST_BODY.format(date=date_str, reading=reading, motivation=motivation)
     )
 
-    def _gs(key: str, default: int) -> bool:
-        return bool(int(group_settings.get(key, default))) if group_settings else bool(default)
+    def _gs(key: str) -> bool:
+        return bool(group_settings[key]) if group_settings else False
 
-    if _gs("daily_verse_enabled", 1 if (settings.enable_random_verses or settings.include_daily_verse) else 0):
+    if _gs("daily_verse_enabled"):
         text += msg.DAILY_POST_WITH_VERSE.format(verse=pick_random_verse())
-    if _gs("daily_dua_enabled", 1 if (settings.enable_random_dua or settings.include_daily_dua) else 0):
+    if _gs("daily_dua_enabled"):
         text += msg.DAILY_POST_WITH_DUA.format(dua=pick_daily_dua())
-    if _gs("daily_hadith_enabled", 1 if (settings.enable_random_hadith or settings.include_daily_hadith) else 0):
+    if _gs("daily_hadith_enabled"):
         text += msg.DAILY_POST_WITH_HADITH.format(hadith=pick_random_hadith())
 
     await context.bot.send_message(
@@ -531,17 +538,17 @@ async def show_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
             group_title = g["title"]
             break
 
-    def _gs(key: str, default: int = 1) -> bool:
-        return bool(int(group_settings.get(key, default))) if group_settings else bool(default)
+    def _gs(key: str) -> bool:
+        return bool(group_settings[key]) if group_settings else False
 
     report_enabled       = _gs("report_enabled")
     milestones_enabled   = _gs("milestones_enabled")
     weekly_report_enabled = _gs("weekly_report_enabled")
     daily_verse_enabled   = _gs("daily_verse_enabled")
-    daily_hadith_enabled  = _gs("daily_hadith_enabled", 0)
-    daily_dua_enabled     = _gs("daily_dua_enabled", 0)
-    reminder_enabled      = _gs("reminder_enabled", 0)
-    announce_badges       = _gs("announce_badges", 0)
+    daily_hadith_enabled  = _gs("daily_hadith_enabled")
+    daily_dua_enabled     = _gs("daily_dua_enabled")
+    reminder_enabled      = _gs("reminder_enabled")
+    announce_badges       = _gs("announce_badges")
 
     text = f"⚙️ *إعدادات: {escape_markdown(group_title)}*\n\n" + msg.SETTINGS_BODY.format(
         post_time=group_settings["post_time"],
@@ -1120,8 +1127,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             CB_TOGGLE_REMINDER:  "reminder_enabled",
             CB_TOGGLE_ANNOUNCE:  "announce_badges",
         }[data]
-        default = 0 if col in ("reminder_enabled", "announce_badges") else 1
-        current = bool(int(group_settings.get(col, default))) if group_settings else bool(default)
+        current = bool(group_settings[col]) if group_settings else False
         await db.update_setting(target_group_id, col, "0" if current else "1")
         await query.answer()
         await show_group_settings(update, context, target_group_id)
@@ -1153,14 +1159,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             + msg.DAILY_POST_BODY.format(date=date_str, reading=reading, motivation=motivation)
         )
 
-        def _gs(key: str, default: int) -> bool:
-            return bool(int(group_settings.get(key, default))) if group_settings else bool(default)
+        def _gs(key: str) -> bool:
+            return bool(group_settings[key]) if group_settings else False
 
-        if _gs("daily_verse_enabled", 1 if (settings.enable_random_verses or settings.include_daily_verse) else 0):
+        if _gs("daily_verse_enabled"):
             text += msg.DAILY_POST_WITH_VERSE.format(verse=pick_random_verse())
-        if _gs("daily_dua_enabled", 1 if (settings.enable_random_dua or settings.include_daily_dua) else 0):
+        if _gs("daily_dua_enabled"):
             text += msg.DAILY_POST_WITH_DUA.format(dua=pick_daily_dua())
-        if _gs("daily_hadith_enabled", 1 if (settings.enable_random_hadith or settings.include_daily_hadith) else 0):
+        if _gs("daily_hadith_enabled"):
             text += msg.DAILY_POST_WITH_HADITH.format(hadith=pick_random_hadith())
 
         await context.bot.send_message(
