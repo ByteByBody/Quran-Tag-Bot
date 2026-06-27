@@ -120,11 +120,9 @@ async def daily_post_job(context) -> None:
 
         plan_key     = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text  = group_settings["custom_reading"] if group_settings else ""
-        raw_start    = (group_settings["reading_start"] or "") if group_settings else ""
-        start_date   = date.fromisoformat(raw_start) if raw_start else None
         current_day  = int(group_settings["reading_current_day"]) if group_settings else -1
         use_hijri    = bool(group_settings["use_hijri_date"]) if group_settings else False
-        reading      = get_reading_for_today(plan_key, custom_text, today, start_date, current_day)
+        reading      = get_reading_for_today(plan_key, custom_text, today, current_day)
         date_str     = format_date_arabic(today, hijri=use_hijri)
 
         # ── Dynamic motivation (no-repeat) ────────────────────────────────

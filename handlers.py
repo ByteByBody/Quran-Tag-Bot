@@ -438,11 +438,9 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
     custom_text = group_settings["custom_reading"] if group_settings else ""
-    raw_start   = (group_settings["reading_start"] or "") if group_settings else ""
-    start_date  = date.fromisoformat(raw_start) if raw_start else None
     curr_day    = int(group_settings["reading_current_day"]) if group_settings else -1
     use_hijri   = bool(group_settings["use_hijri_date"]) if group_settings else False
-    reading     = get_reading_for_today(plan_key, custom_text, today, start_date, curr_day)
+    reading     = get_reading_for_today(plan_key, custom_text, today, curr_day)
     date_str    = format_date_arabic(today, hijri=use_hijri)
 
     day_seed   = today.timetuple().tm_yday
@@ -1182,7 +1180,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             raw_start  = (group_settings["reading_start"] or "") if group_settings else ""
             start_date = date.fromisoformat(raw_start) if raw_start else None
             curr_day   = int(group_settings["reading_current_day"]) if group_settings else -1
-            reading    = get_reading_for_today(plan_key, "", today, start_date, curr_day)
+            reading    = get_reading_for_today(plan_key, "", today, curr_day)
             await query.message.reply_text(
                 msg.READING_PLAN_SELECTED.format(plan_name=plan_name, reading=reading),
                 parse_mode=MD,
@@ -1238,11 +1236,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text = group_settings["custom_reading"] if group_settings else ""
-        raw_start   = (group_settings["reading_start"] or "") if group_settings else ""
-        start_date  = date.fromisoformat(raw_start) if raw_start else None
         curr_day    = int(group_settings["reading_current_day"]) if group_settings else -1
         use_hijri   = bool(group_settings["use_hijri_date"]) if group_settings else False
-        reading     = get_reading_for_today(plan_key, custom_text, today, start_date, curr_day)
+        reading     = get_reading_for_today(plan_key, custom_text, today, curr_day)
         date_str    = format_date_arabic(today, hijri=use_hijri)
 
         day_seed   = today.timetuple().tm_yday
