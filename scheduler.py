@@ -161,6 +161,10 @@ async def daily_post_job(context) -> None:
                 group_id, group_title, today, new_index,
             )
 
+        # Reset one-time juz override after consumption
+        if group_settings and int(group_settings["reading_current_day"]) >= 0:
+            await db.update_setting(group_id, "reading_current_day", "-1")
+
 
 # ---------------------------------------------------------------------------
 # Job 2: Daily completion report

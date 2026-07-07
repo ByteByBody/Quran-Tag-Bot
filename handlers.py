@@ -1268,6 +1268,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         await query.message.reply_text("✅ تم إرسال الورد اليومي إلى المجموعة.", parse_mode=MD)
 
+        # Reset one-time juz override after consumption
+        if group_settings and int(group_settings["reading_current_day"]) >= 0:
+            await db.update_setting(target_group_id, "reading_current_day", "-1")
+
 
     elif data == CB_SKIP_DAY:
         if not await _verify_admin():
