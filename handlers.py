@@ -273,7 +273,30 @@ async def cmd_checkin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 # ---------------------------------------------------------------------------
 
 async def cmd_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show leaderboard — sent privately."""
+    """Show leaderboard — admin only, sent privately."""
+    db = _db(context)
+    chat = update.effective_chat
+
+    target_group = chat.id
+    if chat.type == "private":
+        target_group = context.user_data.get("admin_group_id")
+        if not target_group:
+            await _send_safe(update, "⚠️ اختر مجموعة أولاً عبر /group.", parse_mode=MD)
+            return
+    else:
+        await db.upsert_group(target_group, chat.title or "")
+
+    # Check admin against the target group, not the current chat
+    try:
+        member = await context.bot.get_chat_member(target_group, update.effective_user.id)
+        is_admin_user = member.status in ("administrator", "creator")
+    except Exception:
+        is_admin_user = False
+    if not is_admin_user:
+        await _reply_dm(update, context, msg.ADMIN_ONLY, parse_mode=MD)
+        return
+
+    await _delete_cmd(update, context)
     await _reply_dm(update, context, msg.LEADERBOARD_HEADER + msg.LEADERBOARD_NO_DATA,
                     parse_mode=MD, reply_markup=leaderboard_keyboard())
 
@@ -1331,6 +1354,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                                        reply_markup=help_category_keyboard())
 
     elif data == CB_MENU_LEADERBOARD:
+        if not await _verify_admin():
+            await query.answer(msg.ADMIN_ONLY, show_alert=True)
+            return
         await query.answer()
         await query.message.edit_text(msg.LEADERBOARD_HEADER + msg.LEADERBOARD_NO_DATA,
                                        parse_mode=MD, reply_markup=leaderboard_keyboard())
@@ -1372,6 +1398,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     # ── Leaderboard ──────────────────────────────────────────────────────
     elif data in (CB_LB_CURRENT, CB_LB_TOTAL, CB_LB_MONTH):
+        if not await _verify_admin():
+            await query.answer(msg.ADMIN_ONLY, show_alert=True)
+            return
         if not target_group_id:
             await query.answer("⚠️ اختر مجموعة أولاً عبر /settings.", show_alert=True)
             return
