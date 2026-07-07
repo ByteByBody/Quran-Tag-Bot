@@ -26,8 +26,8 @@ Managing daily Quran reading across a community can be difficult. Quran Tracker 
 - **Weekly report** — trends, averages, and encouragement
 - **Monthly report** — full summary on the 1st of each month (Gregorian)
 - **Personal stats** (`/me`) — streak, total check-ins, estimated juz/pages read
-- **Leaderboard** (`/leaderboard`) — monthly or all-time rankings
 - **Missing list** (`/missing`) — see who hasn't checked in yet (admins only)
+- **Leaderboard** (`/leaderboard`) — monthly or all-time rankings (admins only)
 
 ### 🏅 Achievements & Milestones
 - Badges awarded for check-in milestones (e.g., 10, 30, 100, 365 days)
@@ -70,6 +70,7 @@ All settings are configurable per group by admins via the settings menu:
 | `/report` | See today's participation report |
 | `/missing` | List members not checked in |
 | `/force_daily` | Manually send the daily post (in settings) |
+| `/leaderboard` | View the leaderboard |
 | `/skip_day` | Mark today as skipped (no post/report) |
 | `/reset_month` | Reset current month's stats |
 | `/reset_member` | Reset a specific member's stats |
@@ -83,7 +84,6 @@ All settings are configurable per group by admins via the settings menu:
 | `/menu` | Show the rich main menu |
 | `/me` | View your personal statistics (DM) |
 | `/checkin` | Check in for today's reading |
-| `/leaderboard` | View the leaderboard |
 | `/stats` | View group participation stats |
 | `/help` | Help and command list |
 | `/version` | Bot information |
