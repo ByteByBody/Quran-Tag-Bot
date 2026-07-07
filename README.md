@@ -2,6 +2,10 @@
 
 A Telegram bot that helps groups track their daily Quran reading (الورد اليومي) with check-ins, streaks, leaderboards, and smart scheduling aligned with the Islamic (Hijri) calendar.
 
+## Why Quran Tracker?
+
+Managing daily Quran reading across a community can be difficult. Quran Tracker automates reading schedules, check-ins, reminders, statistics, and progress tracking so groups can stay consistent with minimal admin effort.
+
 ## Features
 
 ### 📖 Daily Reading Post
