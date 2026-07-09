@@ -493,6 +493,10 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await _reply_dm(update, context, "✅ تم إرسال الورد اليومي إلى المجموعة.", parse_mode=MD)
 
+    # Reset one-time juz override after consumption
+    if group_settings and int(group_settings["reading_current_day"]) >= 0:
+        await db.update_setting(target_group, "reading_current_day", "-1")
+
 
 # ---------------------------------------------------------------------------
 # /report
