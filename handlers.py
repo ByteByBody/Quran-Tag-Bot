@@ -88,7 +88,7 @@ from utils import (
     compute_avg_per_week,
     format_date_arabic,
     format_month_arabic,
-    get_reading_for_today,
+    reading_text_for_day_index,
     is_admin,
     parse_hhmm,
     pick_daily_dua,
@@ -461,9 +461,9 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
     custom_text = group_settings["custom_reading"] if group_settings else ""
-    curr_day    = int(group_settings["reading_current_day"]) if group_settings else -1
+    day_index   = int(group_settings["reading_day_index"]) + 1 if group_settings else 0
     use_hijri   = bool(group_settings["use_hijri_date"]) if group_settings else False
-    reading     = get_reading_for_today(plan_key, custom_text, today, curr_day)
+    reading     = reading_text_for_day_index(plan_key, custom_text, day_index)
     date_str    = format_date_arabic(today, hijri=use_hijri)
 
     day_seed   = today.timetuple().tm_yday
@@ -493,9 +493,9 @@ async def cmd_daily(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await _reply_dm(update, context, "✅ تم إرسال الورد اليومي إلى المجموعة.", parse_mode=MD)
 
-    # Reset one-time juz override after consumption
-    if group_settings and int(group_settings["reading_current_day"]) >= 0:
-        await db.update_setting(target_group, "reading_current_day", "-1")
+    # Save the day_index so tomorrow increments by 1
+    if group_settings:
+        await db.update_setting(target_group, "reading_day_index", str(day_index))
 
 
 # ---------------------------------------------------------------------------
@@ -1206,8 +1206,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             today = today_in_tz(tz)
             raw_start  = (group_settings["reading_start"] or "") if group_settings else ""
             start_date = date.fromisoformat(raw_start) if raw_start else None
-            curr_day   = int(group_settings["reading_current_day"]) if group_settings else -1
-            reading    = get_reading_for_today(plan_key, "", today, curr_day)
+            curr_day   = int(group_settings["reading_day_index"]) + 1 if group_settings else 0
+            reading    = reading_text_for_day_index(plan_key, "", curr_day)
             await query.message.reply_text(
                 msg.READING_PLAN_SELECTED.format(plan_name=plan_name, reading=reading),
                 parse_mode=MD,
@@ -1218,7 +1218,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.answer(msg.ADMIN_ONLY, show_alert=True)
             return
         await query.answer()
-        context.user_data[_PENDING_KEY] = "reading_current_day"
+        context.user_data[_PENDING_KEY] = "reading_day_index"
         context.user_data[_PENDING_GROUP] = target_group_id
         await query.message.reply_text(
             "📖 أرسل رقم الجزء (1-30)، أو 0 للإلغاء والعودة تلقائياً:",
@@ -1263,9 +1263,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         plan_key    = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text = group_settings["custom_reading"] if group_settings else ""
-        curr_day    = int(group_settings["reading_current_day"]) if group_settings else -1
+        day_index   = int(group_settings["reading_day_index"]) + 1 if group_settings else 0
         use_hijri   = bool(group_settings["use_hijri_date"]) if group_settings else False
-        reading     = get_reading_for_today(plan_key, custom_text, today, curr_day)
+        reading     = reading_text_for_day_index(plan_key, custom_text, day_index)
         date_str    = format_date_arabic(today, hijri=use_hijri)
 
         day_seed   = today.timetuple().tm_yday
@@ -1295,9 +1295,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         await query.message.reply_text("✅ تم إرسال الورد اليومي إلى المجموعة.", parse_mode=MD)
 
-        # Reset one-time juz override after consumption
-        if group_settings and int(group_settings["reading_current_day"]) >= 0:
-            await db.update_setting(target_group_id, "reading_current_day", "-1")
+        # Save the day_index so tomorrow increments by 1
+        if group_settings:
+            await db.update_setting(target_group_id, "reading_day_index", str(day_index))
 
 
     elif data == CB_SKIP_DAY:
@@ -1498,7 +1498,7 @@ async def handle_text_message(
         await db.update_setting(pending_group, pending_key, text)
         await db.update_setting(pending_group, "plan_key", "custom")
 
-    elif pending_key == "reading_current_day":
+    elif pending_key == "reading_day_index":
         try:
             juz = int(text)
         except (ValueError, TypeError):
@@ -1508,9 +1508,9 @@ async def handle_text_message(
             await _send_safe(update, "⚠️ الرجاء إرسال رقم بين 0 و 30.", parse_mode=MD)
             return
         if juz == 0:
-            await db.update_setting(pending_group, "reading_current_day", "-1")
+            await db.update_setting(pending_group, "reading_day_index", "-1")
         else:
-            await db.update_setting(pending_group, "reading_current_day", str(juz - 1))
+            await db.update_setting(pending_group, "reading_day_index", str(juz - 1))
 
     del context.user_data[_PENDING_KEY]
     del context.user_data[_PENDING_GROUP]

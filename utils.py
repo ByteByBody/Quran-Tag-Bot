@@ -28,9 +28,6 @@ _HIJRI_LEAP_YEARS = {2, 5, 7, 10, 13, 16, 18, 21, 24, 26, 29}
 from messages import (
     ARABIC_MONTHS,
     DAILY_DUAS,
-    PLAN_READING_1_JUZ,
-    PLAN_READING_CUSTOM,
-    PLAN_READING_PAGES,
     QURAN_HADITHS,
     QURAN_VERSES,
     get_streak_badge,
@@ -98,13 +95,6 @@ def format_date_arabic(d: date, hijri: bool = False) -> str:
     return f"{d.day} {ARABIC_MONTHS[d.month]} {d.year}"
 
 
-def hijri_day_of_year(d: date) -> int:
-    """Return the 0-based day-of-year in the Hijri calendar (1 Muharram = 0)."""
-    hy, hm, hd = gregorian_to_hijri(d)
-    total = sum(_HIJRI_MONTH_DAYS[:hm - 1]) + (hd - 1)
-    return total
-
-
 def format_month_arabic(year: int, month: int) -> str:
     """Format year+month as Arabic string: e.g. 'يونيو 2025'."""
     return f"{ARABIC_MONTHS[month]} {year}"
@@ -144,44 +134,29 @@ def iso_week_number(d: date) -> int:
 
 _TOTAL_JUZ   = 30
 _TOTAL_PAGES = 604
-_JUZ_PER_PAGE = _TOTAL_JUZ / _TOTAL_PAGES   # ≈ 0.0496
 
 
-def get_reading_for_today(
-    plan_key: str,
-    custom_text: str = "",
-    target_date: Optional[date] = None,
-    current_day: int = -1,
-) -> str:
+def reading_text_for_day_index(plan_key: str, custom_text: str, day_index: int) -> str:
     """
-    Return the reading text for today based on the active plan.
+    Return the reading text for a given 0-based *day_index* and plan.
 
-    If *current_day* >= 0, that day index overrides the auto calculation.
-    Otherwise uses the Hijri day-of-year (0 = 1 Muharram) so the cycle
-    follows the Islamic calendar.
+    For 1_juz_day:  juz = (day_index % 30) + 1
+    For page plans: from_page = (day_index * ppd % 604) + 1
     """
-    if target_date is None:
-        target_date = date.today()
-
-    if current_day >= 0:
-        day_index = current_day
-    else:
-        day_index = hijri_day_of_year(target_date)  # 0-based Hijri day of year
-
     if plan_key == "1_juz_day":
         juz = (day_index % _TOTAL_JUZ) + 1
-        return PLAN_READING_1_JUZ.format(juz=juz)
+        return msg.PLAN_READING_1_JUZ.format(juz=juz)
 
     if plan_key in ("2_pages_day", "5_pages_day", "10_pages_day"):
         ppd = int(plan_key.split("_")[0])
         from_page = (day_index * ppd % _TOTAL_PAGES) + 1
         to_page = min(from_page + ppd - 1, _TOTAL_PAGES)
-        return PLAN_READING_PAGES.format(
+        return msg.PLAN_READING_PAGES.format(
             pages=ppd, from_page=from_page, to_page=to_page
         )
 
     if plan_key == "custom":
-        return PLAN_READING_CUSTOM.format(text=custom_text or "ورد مخصص")
+        return msg.PLAN_READING_CUSTOM.format(text=custom_text or "ورد مخصص")
 
     return "جزء من القرآن الكريم"
 

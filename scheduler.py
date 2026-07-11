@@ -36,7 +36,7 @@ from utils import (
     display_name,
     format_date_arabic,
     format_month_arabic,
-    get_reading_for_today,
+    reading_text_for_day_index,
     pick_daily_dua,
     pick_random_hadith,
     pick_random_verse,
@@ -120,9 +120,9 @@ async def daily_post_job(context) -> None:
 
         plan_key     = group_settings["plan_key"]     if group_settings else "1_juz_day"
         custom_text  = group_settings["custom_reading"] if group_settings else ""
-        current_day  = int(group_settings["reading_current_day"]) if group_settings else -1
+        day_index    = int(group_settings["reading_day_index"]) + 1 if group_settings else 0
         use_hijri    = bool(group_settings["use_hijri_date"]) if group_settings else False
-        reading      = get_reading_for_today(plan_key, custom_text, today, current_day)
+        reading      = reading_text_for_day_index(plan_key, custom_text, day_index)
         date_str     = format_date_arabic(today, hijri=use_hijri)
 
         # ── Dynamic motivation (no-repeat) ────────────────────────────────
@@ -161,9 +161,9 @@ async def daily_post_job(context) -> None:
                 group_id, group_title, today, new_index,
             )
 
-        # Reset one-time juz override after consumption
-        if group_settings and int(group_settings["reading_current_day"]) >= 0:
-            await db.update_setting(group_id, "reading_current_day", "-1")
+        # Save the day_index so tomorrow increments by 1
+        if group_settings:
+            await db.update_setting(group_id, "reading_day_index", str(day_index))
 
 
 # ---------------------------------------------------------------------------
